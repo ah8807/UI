@@ -1,0 +1,468 @@
+---
+title: "Umetna inteligenca 2021-2022" 
+subtitle: "Seminarska naloga 1"
+author: Aljaž Hribar
+date: 30 November 2021
+  
+output:
+  pdf_document: default
+  html_document: default
+
+  
+---
+
+
+
+```{r include=FALSE}
+
+```
+```{r include=TRUE}
+
+```
+
+
+```{r include=FALSE}
+main_ucna<-read.table("./ucnaSem1.txt",sep=",",header=T)
+main_testna<-read.table("./testnaSem1.txt",sep=",",header=T)
+ucna<-main_ucna
+testna<-main_testna
+```
+# Klasifikacijski problem
+## Ocenjevanje in konstrukcija atributov
+najprej faktoriziramo vse atribute, ki niso zvezni
+```{r include=TRUE}
+ucna$regija<-as.factor(ucna$regija)
+testna$regija<-as.factor(testna$regija)
+ucna$namembnost<-as.factor(ucna$namembnost)
+testna$namembnost<-as.factor(testna$namembnost)
+ucna$oblacnost<-as.factor(ucna$oblacnost)
+testna$oblacnost<-as.factor(testna$oblacnost)
+summary(ucna)
+```
+opazimo da lahko je smer vetra podana koz zvezni podatek ampak bi nam bila bolj uporabna kot diskretni zato jo faktoriziramo
+```{r include=FALSE}
+source("./as.smeri_vetra.R")
+ucna$smer_vetra<-as.smeri_vetra(ucna$smer_vetra)
+testna$smer_vetra<-as.smeri_vetra(testna$smer_vetra)
+```
+```{r include=TRUE}
+table(ucna$smer_vetra)
+```
+iz atributa "datum" lahko generiramo nov atribut "season", ki nam pove letni čas meritve in atribut "vikend" ki nam pove ali je na ta datum bil vikend ali delovni teden
+```{r include=FALSE}
+source("./date.to.seasons.R")
+ucna$season<-date.to.seasons(ucna$datum)
+testna$season<-date.to.seasons(testna$datum)
+source("./is.weekend.R")
+ucna$vikend<-is.weekend(ucna$datum)
+testna$vikend<-is.weekend(testna$datum)
+```
+```{r include=TRUE}
+table(ucna$season)
+table(ucna$vikend)
+```
+prav tako lahko iz atributa "poraba" izvlečemo atributa "dosedanja_povpreča" in "dosedanja_skupna" ki nam povesta kolikšna je povprečna in skupna poraba stavbe do vključno trenutnega datuma meritve
+```{r include=FALSE}
+source("./dosedanja.povprecna.poraba.R")
+ucna$dosedanja_povprecna<-dosedanja.povprecna.poraba(ucna)
+testna$dosedanja_povprecna<-dosedanja.povprecna.poraba(testna)
+source("./dosedanja.skupna.poraba.R")
+ucna$dosedanja_skupna<-dosedanja.skupna.poraba(ucna)
+testna$dosedanja_skupna<-dosedanja.skupna.poraba(testna)
+```
+```{r include=TRUE}
+summary(ucna$dosedanja_povprecna)
+summary(ucna$dosedanja_skupna)
+```
+sedaj lahko izločimo atribut stavba saj je za klasifikacijo odvečen atribut, ki bi samo kvaril modele
+```{r include=TRUE}
+ucna$stavba<-NULL
+testna$stavba<-NULL
+```
+z attrEval() funkcijo ocenimo atribute, 
+```{r include=TRUE}
+library(CORElearn)
+sort(attrEval(namembnost ~ ., ucna, "Relief"), decreasing = TRUE)
+sort(attrEval(namembnost ~ ., ucna, "ReliefFequalK"), decreasing = TRUE)
+sort(attrEval(namembnost ~ ., ucna, "ReliefFexpRank"), decreasing = TRUE)
+```
+iz avaluacije atributov opazimo da imajo atributi ki opisujejo vremenske razmere in datum meritev le teh zelo majheno povezavo z namembnostjo stavbe zato jih lahko izločimo
+```{r include=TRUE}
+ucna$temp_zraka<-NULL
+ucna$pritisk<-NULL
+ucna$temp_rosisca<-NULL
+ucna$padavine<-NULL
+ucna$hitrost_vetra<-NULL
+ucna$smer_vetra<-NULL
+ucna$oblacnost<-NULL
+ucna$datum<-NULL
+ucna$season<-NULL
+ucna$vikend<-NULL
+testna$temp_zraka<-NULL
+testna$pritisk<-NULL
+testna$temp_rosisca<-NULL
+testna$padavine<-NULL
+testna$hitrost_vetra<-NULL
+testna$smer_vetra<-NULL
+testna$oblacnost<-NULL
+testna$datum<-NULL
+testna$season<-NULL
+testna$vikend<-NULL
+ucna$dosedanja_skupna<-NULL
+testna$dosedanja_skupna<-NULL
+```
+## gradnja modelov
+```{r include=FALSE}
+library(rpart)
+
+myTrainFunc <- function(formula, traindata)
+{
+  CoreModel(formula, traindata, model="tree", selectionEstimator="ReliefFequalK")
+}
+
+myPredictFunc <- function(model, testdata)
+{
+  predict(model, testdata, type="class")
+}
+
+
+myEvalFunc <- function(predicted, observed, trained)
+{
+  # vracamo napako modela, saj wrapper minimizira vrednost ocene
+  1.0 - mean(observed == predicted)	
+}
+library(nnet)
+obsMat <- class.ind(testna$namembnost)
+
+# pravilni razredi testnih primerov (potrebujemo jih za ocenjevanje klasifikacijske tocnosti)
+observed <- testna$namembnost
+
+# funkcija za izracun klasifikacijske tocnosti
+CA <- function(observed, predicted)
+{
+  mean(observed == predicted)
+}
+
+# funkcija za izracun povprecne Brierjeve mere
+brier.score <- function(observedMatrix, predictedMatrix)
+{
+  sum((observedMatrix - predictedMatrix) ^ 2) / nrow(predictedMatrix)
+}
+```
+### odločitveno drevo
+najprej sva zgradila model z vsemi atributi
+```{r include=FALSE}
+library(rpart)
+library(rpart.plot)
+dt<-rpart(namembnost~.,ucna, cp=0)
+predicted<-predict(dt,testna,type="class")
+CA(observed,predicted)
+predMat <- predict(dt, testna, type = "prob")
+brier.score(obsMat, predMat)
+tab <- printcp(dt)
+row <- which.min(tab[,"xerror"])
+th <- mean(c(tab[row, "CP"], tab[row-1, "CP"]))
+th
+dt <- prune(dt, cp=th)
+```
+```{r include=TRUE}
+rpart.plot(dt)
+CA(observed,predicted)
+predMat <- predict(dt, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+nato pa še poiskusila minimalizirati napako z fukcijo wrapper(), ki je vrnila da so najboljšo točnost imeli atributi povrsina in leto_izgradnje
+z pričakovano napako 0.007543904
+```{r include=FALSE}
+dt.min_napaka<-rpart(namembnost~povrsina + leto_izgradnje,ucna,cp=0)
+predicted<-predict(dt.min_napaka,testna,type="class")
+CA(observed,predicted)
+predMat <- predict(dt.min_napaka, testna, type = "prob")
+brier.score(obsMat, predMat)
+tab <- printcp(dt.min_napaka)
+row <- which.min(tab[,"xerror"])
+th <- mean(c(tab[row, "CP"], tab[row-1, "CP"]))
+th
+dt.min_napaka <- prune(dt.min_napaka, cp=th)
+```
+```{r include=TRUE}
+rpart.plot(dt)
+CA(observed,predicted)
+predMat <- predict(dt, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+ko sva pognal wraper() za minimizacijo "brier score" sva dobila podobne rezultate saj nama je funcija vrnila "best model: estimated error =  0.01390878 , selected feature subset =  namembnost ~ povrsina + leto_izgradnje"
+```{r include=FALSE}
+dt<-rpart(namembnost~povrsina + leto_izgradnje,ucna,cp=0)
+predicted<-predict(dt,testna,type="class")
+CA(observed,predicted)
+predMat <- predict(dt, testna, type = "prob")
+brier.score(obsMat, predMat)
+tab <- printcp(dt)
+row <- which.min(tab[,"xerror"])
+th <- mean(c(tab[row, "CP"], tab[row-1, "CP"]))
+th
+dt <- prune(dt, cp=th)
+```
+```{r include=TRUE}
+rpart.plot(dt)
+CA(observed,predicted)
+predMat <- predict(dt, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+### naivni bayes
+tukaj sva uporabila enak postopek kot pri gradnji drevesa in dobila naslednje rezultate:
+
+```{r include=FALSE}
+library(CORElearn)
+nb <- CoreModel(namembnost ~ ., data = ucna, model="bayes")
+predicted <- predict(nb, testna, type="class")
+
+```
+z vsemi atributi:
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(nb, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+wrapper z minimizacijo napake:
+```{r include=FALSE}
+nb <- CoreModel(namembnost ~ leto_izgradnje + povrsina + regija + dosedanja_povprecna , data = ucna, model="bayes")
+predicted <- predict(nb, testna, type="class")
+
+```
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(nb, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+wrapper z minimizacijo brier:
+```{r include=FALSE}
+nb. <- CoreModel(namembnost ~ leto_izgradnje + povrsina + regija, data = ucna, model="bayes")
+predicted <- predict(nb, testna, type="class")
+
+```
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(nb, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+### k-najbližjih sosedov
+```{r include=FALSE}
+library(CORElearn)
+n <- nrow(ucna)
+k <- 10
+
+set.seed(0)
+fold.id <- rep(1:k, length.out=n)
+s <- sample(1:n, n, FALSE)
+fold.id <- fold.id[s]
+
+# poskusili bomo vse vrednosti parametra "kInNN" na intervalu od 1 do 20
+minkInNN <- 1
+maxkInNN <- 20
+est <- vector()
+for (val in minkInNN:maxkInNN)
+{
+  print(paste("Testiram za nastavitev kInNN", val))
+  flush.console()
+  
+  q <- vector()
+  for (i in 1:k)
+  {	
+    sel <- fold.id == i
+    knn <- CoreModel(namembnost ~ ., data = ucna[!sel,], model="knn", kInNN = val)
+    pred <- predict(knn, ucna[sel,], type= "class")
+    obs <- ucna$position[sel]
+    q[sel] <- pred == obs
+  }
+  
+  est <- append(est, mean(q))
+}
+
+names(est) <- minkInNN:maxkInNN
+est
+
+which.max(est)
+
+
+knn <- CoreModel(namembnost ~ ., data = ucna, model="knn", kInNN = 18)
+predicted <- predict(knn, testna, type="class")
+```
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(knn, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+### naključno gozd
+```{r include=FALSE}
+library(CORElearn)
+rf <- CoreModel(namembnost ~ ., data = ucna, model="rf")
+predicted <- predict(rf, testna, type="class")
+```
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(rf, testna, type = "prob")
+brier.score(obsMat, predMat)
+```
+### SVM
+```{r include=FALSE}
+library(kernlab)
+sm <- ksvm(namembnost ~ ., data = ucna, kernel = "rbfdot", prob.model = T)
+predMat <- predict(sm, testna, type = "prob")
+```
+```{r include=TRUE}
+brier.score(obsMat, predMat)
+CA(observed, predicted)
+```
+### Umetne nevronske mreže
+najprej je bilo potrebno normalizirati zvezne atribute v učni in testni množici nato pa sva dobil te rezultate:
+```{r include=FALSE}
+library(nnet)
+summary(ucna)
+names(ucna)
+class <- which(names(ucna) == "regija"|names(ucna) == "namembnost")
+class
+
+max_train <- apply(ucna[,-class], 2, max)
+min_train <- apply(ucna[,-class], 2, min)
+
+# normaliziramo podatke
+ucna_scaled <- scale(ucna[,-class], center = min_train, scale = max_train - min_train)
+ucna_scaled <- data.frame(ucna_scaled)
+ucna_scaled$regija <- ucna$regija
+ucna_scaled$namembnost <- ucna$namembnost
+# vse vrednosti atributov v ucni mnozici so na intervalu [0,1]
+summary(ucna_scaled)
+
+
+# testno mnozico skaliramo na zalogo vrednosti iz ucne mnozice!
+testna_scaled <- scale(testna[,-class], center = min_train, scale = max_train - min_train)
+testna_scaled <- data.frame(testna_scaled)
+testna_scaled$regija <- testna$regija
+testna_scaled$namembnost <- testna$namembnost
+# v testni mnozici ne bodo vse vrednosti na intervalu [0,1]!
+summary(testna_scaled)
+
+set.seed(0)
+nn <- nnet(namembnost ~ ., data = ucna_scaled, size = 5, decay = 0.0001, maxit = 10000)
+predicted <- predict(nn, testna_scaled, type = "class")
+```
+```{r include=TRUE}
+CA(observed, predicted)
+predMat <- predict(nn, testna_scaled, type = "raw")
+brier.score(obsMat, predMat)
+```
+### kobinirani modeli 
+za kombinirane modele sva se odločila uporabiti modele nevrenoske mreže, naibni bayes in SVM
+
+najprej sva poskusil z glasovanjem in dobila
+```{r include=FALSE}
+modelNM <- nnet(namembnost ~ ., data = ucna_scaled, size = 5, decay = 0.0001, maxit = 10000)
+modelNB <- CoreModel(namembnost ~ leto_izgradnje + povrsina + regija, data = ucna, model="bayes")
+modelSVM <- ksvm(namembnost ~ ., data = ucna, kernel = "rbfdot",prob.model = T)
+
+predNM <- predict(modelNM, testna_scaled, type = "class")
+caNM <- CA(observed, predNM)
+caNM
+length(observed)
+predNB <- predict(modelNB, testna, type="class")
+caNB <- CA(observed, predNB)
+caNB
+
+predSVM <- predict(modelSVM, testna, type="response")
+caSVM <- CA(observed, predSVM)
+caSVM
+# zdruzimo napovedi posameznih modelov v en podatkovni okvir
+pred <- data.frame(predNM, predNB, predSVM)
+head(pred)
+
+# testni primer klasificiramo v razred z najvec glasovi
+voting <- function(predictions)
+{
+  res <- vector()
+  
+  for (i in 1 : nrow(predictions))  	
+  {
+    vec <- unlist(predictions[i,])
+    res[i] <- names(which.max(table(vec)))
+  }
+  
+  res
+}
+levels(ucna$namembnost)
+predClass <- voting(pred)
+head(predClass)
+length(predClass)
+predClass[predClass=="1"]<-"izobrazevalna" 
+predClass[predClass=="2"]<-"javno_storitvena" 
+predClass[predClass=="3"]<-"kulturno_razvedrilna" 
+predClass[predClass=="4"]<-"poslovna" 
+predClass[predClass=="5"]<-"stanovanjska"
+predClass
+ucna$namembnost<-as.factor(ucna$namembnost)
+levels(ucna$namembnost)
+predicted <- factor(predClass, levels=levels(ucna$namembnost))
+length(observed)
+length(predicted)
+```
+```{r include=TRUE}
+CA(observed, predicted)
+```
+nato z uteženim glasovanjem
+```{r include=FALSE}
+predNM.prob <- predict(modelNM, testna, type="raw")
+predNB.prob <- predict(modelNB, testna, type = "prob")
+predSVM.prob <- predict(modelSVM, testna, type="prob")
+
+# sestejemo napovedane verjetnosti s strani razlicnih modelov
+predProb <- predNM.prob + predNB.prob + predSVM.prob
+
+head(predProb)
+
+head(max.col(predProb))
+
+# izberemo razred z najvecjo verjetnostjo
+predClass <- colnames(predProb)[max.col(predProb)]
+predicted <- factor(predClass, levels(ucna$namembnost))
+head(predicted)
+```
+```{r include=TRUE}
+CA(observed, predicted)
+```
+nazadnje pa še z boostingom
+```{r include=FALSE}
+library(adabag)
+
+bm <- boosting(namembnost ~ ., ucna, mfinal=100)
+predictions <- predict(bm, testna)
+names(predictions)
+
+predicted <- predictions$clas
+```
+```{r include=TRUE}
+CA(observed, predicted)
+```
+na podlagi brier score-a so bili najboljši modeli 
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+```{r include=TRUE}
+
+```
+

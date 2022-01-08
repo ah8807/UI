@@ -1,0 +1,10 @@
+date.to.seasons<-function(atribut){
+  tmp<-atribut
+  tmp[atribut>=as.POSIXct("2016-3-20")&atribut<as.POSIXct("2016-6-20")]<-"Spring"
+  tmp[atribut>=as.POSIXct("2016-6-20")&atribut<as.POSIXct("2016-9-22")]<-"Summer"
+  tmp[atribut>=as.POSIXct("2016-9-22")&atribut<as.POSIXct("2016-12-21")]<-"Fall"
+  tmp[atribut>=as.POSIXct("2016-12-21")&atribut<as.POSIXct("2017-1-1")]<-"Winter"
+  tmp[atribut>=as.POSIXct("2016-1-1")&atribut<as.POSIXct("2016-3-20")]<-"Winter"
+  atribut<-tmp
+  return(as.factor(atribut))
+}
