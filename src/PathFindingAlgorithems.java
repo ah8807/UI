@@ -38,75 +38,41 @@ public class PathFindingAlgorithems {
                         tone = 1;
                     }
                     for (int j = 0; j < polja.length; j++) {
+                        //sestavi labirint Array
                         labirinth[i][j] = Integer.parseInt(polja[j]);
                         if (labirinth[i][j] == -2)
+                            //najdi start
                             start = new int[]{i, j};
                         if (labirinth[i][j] == -4)
+                            //najdi end
                             end = new int[]{i, j};
                         if (labirinth[i][j] == -3)
+                            //najdi zaklade
                             tresures.add(new int[]{i, j});
 
                     }
                     i++;
                 }
-                myWriter.append("DFS\n");
+                //DFS
                 drawOut(labirinth);
                 ArrayList<int[]> resitev = DFS(labirinth.length, labirinth.length, labirinth, start, end, getTresures(tresures));
                 Collections.reverse(resitev);
                 drawSolution(labirinth, resitev,start,end,tresures);
-                StdDraw.setPenColor(Color.BLUE);
-                Font font = new Font("Arial", Font.BOLD, 150);
-                StdDraw.setFont(font);
-                StdDraw.text(0.5, 0.5, "DFS");
-                StdDraw.show();
-                font = new Font("Arial", Font.BOLD, 20);
-                StdDraw.setFont(font);
-                StdDraw.text(0.12, 0.97, "labyrinth_"+maze);
-                StdDraw.show();
-                StdDraw.save("C:/UI/maze_solutions/DFS_solution" + maze + ".png");
-                path_length = resitev.size();
-                printStatistics(myWriter);
-                printSolution(resitev,myWriter);
-                resetStatistics();
+                saveResults(maze, myWriter, resitev,"DFS");
 
-                myWriter.append("\nBFS\n");
+                //BFS
                 drawOut(labirinth);
                 resitev = BFS(labirinth.length, labirinth.length, labirinth, start, end, getTresures(tresures));
                 Collections.reverse(resitev);
                 drawSolution(labirinth, resitev,start,end,tresures);
-                StdDraw.setPenColor(Color.BLUE);
-                font = new Font("Arial", Font.BOLD, 150);
-                StdDraw.setFont(font);
-                StdDraw.text(0.5, 0.5, "BFS");
-                StdDraw.show();
-                font = new Font("Arial", Font.BOLD, 20);
-                StdDraw.setFont(font);
-                StdDraw.text(0.12, 0.97, "labyrinth_"+maze);
-                StdDraw.show();
-                StdDraw.save("C:/UI/maze_solutions/BFS_solution" + maze + ".png");
-                path_length = resitev.size();
-                printStatistics(myWriter);
-                printSolution(resitev,myWriter);
-                resetStatistics();
+                saveResults(maze, myWriter, resitev,"BFS");
 
-                myWriter.append("\nAStar\n");
+                //AStar
                 drawOut(labirinth);
                 resitev = AStar(labirinth.length, labirinth.length, labirinth, start, end, getTresures(tresures));
                 drawSolution(labirinth, resitev,start,end,tresures);
-                StdDraw.setPenColor(Color.BLUE);
-                font = new Font("Arial", Font.BOLD, 150);
-                StdDraw.setFont(font);
-                StdDraw.text(0.5, 0.5, "AStar");
-                StdDraw.show();
-                font = new Font("Arial", Font.BOLD, 20);
-                StdDraw.setFont(font);
-                StdDraw.text(0.12, 0.97, "labyrinth_"+maze);
-                StdDraw.show();
-                StdDraw.save("C:/UI/maze_solutions/AStar_solution" + maze + ".png");
-                path_length = resitev.size();
-                printStatistics(myWriter);
-                printSolution(resitev,myWriter);
-                resetStatistics();
+                saveResults(maze, myWriter, resitev,"AStar");
+
                 myWriter.close();
             }
 
@@ -114,6 +80,25 @@ public class PathFindingAlgorithems {
         }catch(Exception e){
             System.out.println(e);
         }
+    }
+
+    private static void saveResults(int maze, FileWriter myWriter, ArrayList<int[]> resitev,String name) throws IOException {
+        Font font;
+        myWriter.append("\n"+name+"\n");
+        StdDraw.setPenColor(Color.BLUE);
+        font = new Font("Arial", Font.BOLD, 150);
+        StdDraw.setFont(font);
+        StdDraw.text(0.5, 0.5, name);
+        StdDraw.show();
+        font = new Font("Arial", Font.BOLD, 20);
+        StdDraw.setFont(font);
+        StdDraw.text(0.12, 0.97, "labyrinth_"+ maze);
+        StdDraw.show();
+        StdDraw.save("C:/UI/maze_solutions/"+name+"_solution" + maze + ".png");
+        path_length = resitev.size();
+        printStatistics(myWriter);
+        printSolution(resitev, myWriter);
+        resetStatistics();
     }
 
     private static void printSolution(ArrayList<int[]> solution,FileWriter myWriter) throws IOException {
@@ -192,10 +177,6 @@ public class PathFindingAlgorithems {
     }
     static int[][] dir = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
     public static ArrayList<int[]> DFS(int n, int m , int[][]maze, int[] start, int[] end, ArrayList<int[]> tresures){
-        Random random = new Random();
-        int r = random.nextInt(256);
-        int g = random.nextInt(256);
-        int b = random.nextInt(256);
         StdDraw.setPenColor(Color.YELLOW);
 
         Stack<int[]> st = new Stack<>();
@@ -203,21 +184,26 @@ public class PathFindingAlgorithems {
         boolean[][] visited = new boolean[n][m];
         int[][][] parent = new int[n][m][];
 
+        //dodaj start v stack
         visited[start[0]][start[1]] = true;
         st.push(start);
         greatest_depth = st.size();
+
+        //ponavljaj dokler stack ni prazen
         while(!st.isEmpty()){
             int[] curNode = st.peek();
             for(int[] tresure:tresures){
+                //če najdeš zaklad ga odstrani iz zakladov in poženi algoritem iz mesta zaklada
                 if(visited[tresure[0]][tresure[1]]){
                     tresures.remove(tresure);
                     drawOut(maze);
                     ArrayList<int[]> tmp = DFS(n,m,maze,curNode,end,tresures);
+                    //v path zapiše pot ki jo dobi rekurzivni klic
                     for(int[]e : tmp){
                         path.add(e);
                     }
+                    //prebere pot do cilja/zaklada pred klicem rekurzije in jo zapiše v path
                     int[] cur = curNode;
-                    // loop until we reach s (s is the only visited node with null parent)
                     while(parent[cur[0]][cur[1]] != null) {
                         path.add(cur);
                         cur = parent[cur[0]][cur[1]];
@@ -225,40 +211,41 @@ public class PathFindingAlgorithems {
                     return path;
                 }
             }
+            //če ni več zakladov in se nahajaš na cilju zaključi algoritem
             if(maze[curNode[0]][curNode[1]]==-4&&tresures.isEmpty()){
                 int[] cur = end;
-                // loop until we reach s (s is the only visited node with null parent)
                 while(parent[cur[0]][cur[1]] != null) {
                     path.add(cur);
                     cur = parent[cur[0]][cur[1]];
                 }
-                // reverse and return the path
                 return path;
             }
+            //preglej vse možne poteze in ali so bile že obiskane
             boolean found = false;
             for(int[] d : dir) {
                 int i = curNode[0] + d[0];
                 int j = curNode[1] + d[1];
-                // visit the edge from u to (i, j)
+                //če najdeš legalno potezo jo daj na stack in prekini zanko;
                 if(!visited[i][j] && maze[i][j] !=-1) {
                     n_nodes_visited++;
                     drawNode(maze, (double) i, (double) j);
-                    // node (i, j) has not yet been visited and is not a wall, add it
+
                     st.push(new int[]{i, j});
                     if(st.size()>greatest_depth){
                         greatest_depth = st.size();
                     }
                     visited[i][j] = true;
-                    // set the parent of (i, j) to be u
                     parent[i][j] = curNode;
                     found = true;
                     break;
                 }
                 }
+            //če nobena poteza ni bila legalna sestopi za en korak nazaj(remove 1 node form stack)
             if(!found){
                 st.pop();
             }
         }
+        //v primeru da ne pride do cilja se vedno vrne path kljub temu da ni pravilno
         return path;
     }
 
@@ -299,18 +286,21 @@ public class PathFindingAlgorithems {
     public static <Queue> ArrayList<int[]> AStar(int n, int m, int[][] maze, int[] start, int[] end, ArrayList<int[]> tresures){
         ArrayList<int[]> path = new ArrayList<>();
         ArrayList<int[]> Q = new ArrayList<>();
+
+        //v array dodaj start
         Q.add(start);
         int[][][] parent = new int[n][m][];
 
+        //array dolžine poti
         int[][] gScore = new int[n][m];
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
                 gScore[i][j] = Integer.MAX_VALUE;
             }
         }
-
         gScore[start[0]][start[1]]=0;
 
+        //array dolžin optimalne poti do cilja
         int[][] fScore = new int[n][m];
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
@@ -318,13 +308,17 @@ public class PathFindingAlgorithems {
             }
         }
         fScore[start[0]][start[1]]=h(start,tresures,end);
+
+        //ponavljaj dokler array ni prazen
         while(!Q.isEmpty()){
             int[] curNode = getMinNode(Q, fScore);
+            //če ni zakladov in si na cilju vrni pot
             if(maze[curNode[0]][curNode[1]]==-4&&tresures.isEmpty()){
                 path=getPath(curNode,parent);
                 Collections.reverse(path);
                 return path;
             }
+            //če se nahajaš na zakladu ga ostrani in ponovno poženi algoritem iz mesta zaklada
             for(int[] tresure:tresures){
                 if(tresure[0]==curNode[0]&&tresure[1]==curNode[1]) {
                     tresures.remove(tresure);
@@ -338,14 +332,22 @@ public class PathFindingAlgorithems {
                     return path;
                 }
             }
+            //ostrani trenutno polje
             Q.remove(curNode);
+            //preveri vse možne smeri
             for(int[] d : dir) {
                 int i = curNode[0] + d[0];
                 int j = curNode[1] + d[1];
                 if(maze[i][j]==-1){
                     continue;
                 }
-                int t_gScore = gScore[curNode[0]][curNode[1]]+1;
+                int cost=0;
+                if(maze[curNode[0]][curNode[1]]!=-2&&maze[curNode[0]][curNode[1]]!=-4&&maze[curNode[0]][curNode[1]]!=-3){
+//                  cost=maze[curNode[0]][curNode[1]];
+                    cost=1;
+                }
+                int t_gScore = gScore[curNode[0]][curNode[1]]+cost;
+                //če si našev nobo bolj optimalno pot do soseda ogliča v katerem se nahajaš popravi vrenosti cen v gScore in fScore za tega soseda
                 if(t_gScore<gScore[i][j]){
                     n_nodes_visited++;
                     StdDraw.setPenColor(Color.YELLOW);
@@ -357,6 +359,7 @@ public class PathFindingAlgorithems {
                     }
                     int[] neighbor = new int[]{i,j};
                     fScore[i][j]=t_gScore+h(neighbor,tresures,end);
+                    //če tega soseda še nimaš v array vozlišč ga dodaj
                     if(!QContains(neighbor,Q)){
                         Q.add(neighbor);
                     }
@@ -365,6 +368,7 @@ public class PathFindingAlgorithems {
 
 
         }
+        //do tle pride samo če je nekaj narobe
         return path;
     }
 
@@ -389,14 +393,17 @@ public class PathFindingAlgorithems {
         return curNode;
     }
     public static <Queue> ArrayList<int[]> BFS(int n, int m, int[][] maze, int[] start, int[] end, ArrayList<int[]> tresures) throws InterruptedException {
+        //naredi queue in vanjga dodaj start
         java.util.Queue<int[]> Q = new LinkedList<>();
         Q.add(start);
         boolean[][] visited = new boolean[n][m];
         int[][][] parent = new int[n][m][];
         visited[start[0]][start[1]] = true;
+        //ponavljaj dokler ququq ni prazen
         while(!Q.isEmpty()) {
+            //preberi prvi element queue
             int[] u = Q.poll();
-            // we are now processing node u
+            //preveri vse sosede in legalne dodaj v queue
             for(int[] d : dir) {
                 int i = u[0] + d[0];
                 int j = u[1] + d[1];
@@ -409,12 +416,15 @@ public class PathFindingAlgorithems {
                     parent[i][j] = u;
                 }
             }
+            //če si obiskav zaklad prekini while zanko
             if(tresureVisited(tresures,visited)) {
                 break;
             }
+            //če ni več zakladov in si na ciklju prekini while zanko
             if(visited[end[0]][end[1]]&&tresures.isEmpty())
                 break;
         }
+        //odtrani obiskani zaklad iz zakladov
         int[] curend = end;
         for(int[] e : tresures){
             if(visited[e[0]][e[1]]) {
@@ -429,14 +439,18 @@ public class PathFindingAlgorithems {
         ArrayList<int[]> tmp = new ArrayList<>();
 
         drawOut(maze);
+        //rekurzivon poženi algoritem
         if(!tresures.isEmpty()){
             tmp= BFS(n,m,maze,curend,end,tresures);
         }else if(curend!=end){
             tmp= BFS(n,m,maze,curend,end,tresures);
         }
+        //v path dodaj pot iz rekurzivnih klicev
         for(int[]e:tmp){
             path.add(e);
         }
+
+        //v path dodaj še pot pred rekurzijo
         int[] cur = curend;
         while(parent[cur[0]][cur[1]] != null) {
             this_path.add(cur);
